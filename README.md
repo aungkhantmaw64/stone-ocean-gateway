@@ -80,7 +80,7 @@ Without `bmaptool`: `zstdcat <image>.wic.zst | sudo dd of=/dev/sdX bs=4M conv=fs
 
 ```sh
 lsusb                                 # the dongle shows up
-btmgmt info                           # hci0 is present
+hciconfig -a                          # hci0 is present
 systemctl status bluetooth-mesh       # active (running)
 journalctl -u bluetooth-mesh -b
 ```
