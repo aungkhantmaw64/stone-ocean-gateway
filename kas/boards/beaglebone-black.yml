@@ -1,0 +1,13 @@
+# BeagleBone Black, using the reference BSP in meta-yocto-bsp
+# (linux-yocto, mainline U-Boot, SD-card wic image).
+header:
+  version: 20
+  includes:
+    - kas/common.yml
+
+machine: beaglebone-yocto
+
+repos:
+  meta-yocto:
+    layers:
+      meta-yocto-bsp:

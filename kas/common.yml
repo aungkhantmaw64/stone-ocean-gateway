@@ -1,0 +1,42 @@
+# Board-independent part of every gateway build. A board file in
+# kas/boards/ includes this and adds its machine and BSP layers.
+header:
+  version: 20
+
+distro: stone-ocean
+target: stone-ocean-gateway-image
+
+repos:
+  # The repository this file lives in.
+  stone-ocean-gateway:
+    layers:
+      layers/meta-stone-ocean:
+
+  bitbake:
+    url: https://git.openembedded.org/bitbake
+    branch: "2.18"
+    layers:
+      .: disabled
+
+  openembedded-core:
+    url: https://git.openembedded.org/openembedded-core
+    branch: wrynose
+    layers:
+      meta:
+
+  meta-yocto:
+    url: https://git.yoctoproject.org/meta-yocto
+    branch: wrynose
+    layers:
+      meta-poky:
+
+local_conf_header:
+  stone-ocean: |
+    BB_NUMBER_THREADS ?= "${@oe.utils.cpu_count()}"
+    PARALLEL_MAKE ?= "-j ${@oe.utils.cpu_count()}"
+    # Removes work directories once a recipe is built.
+    INHERIT += "rm_work"
+    # Fetch release tarballs from the Yocto Project's source mirror first;
+    # some upstream hosts (zlib.net) answer automated downloads with a bot
+    # challenge page. Checksums are still verified.
+    PREMIRRORS:prepend = "https?://.*/.* https://downloads.yoctoproject.org/mirror/sources/"
