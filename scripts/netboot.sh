@@ -92,6 +92,10 @@ start)
 	server=$(sed -n 's/^netboot_server=//p' "$deploy/netboot.txt" 2>/dev/null || true)
 	echo "serving $board: TFTP udp/69, NFS tcp/3049, mount tcp/3048"
 	echo "the SD card's netboot.txt points the board at ${server:-?}"
+	# A direct cable's address only exists while the link is up.
+	if [ -n "$server" ] && ! ip -4 -o addr show | grep -q " inet $server/"; then
+		echo "warning: $server is not an address of this host (yet); for a direct cable, plug in the board" >&2
+	fi
 	;;
 stop)
 	docker rm -f "$name" >/dev/null 2>&1 || true

@@ -111,7 +111,9 @@ scripts/netboot.sh modules              # copy the new modules into the NFS root
 
 - The PC's address is detected at build time and written to `netboot.txt` on
   the SD card's boot partition. If it changes, edit that file on the card, or
-  rebuild with `NETBOOT_SERVER=<ip> scripts/build.sh --dev`.
+  rebuild with `NETBOOT_SERVER=<ip> scripts/build.sh --dev`. A `NETBOOT_SERVER`
+  is remembered for later `--dev` builds of that board; `NETBOOT_SERVER=auto`
+  goes back to detecting it.
 - The container uses the host network: TFTP on udp/69, NFS on tcp/3049, mount
   on tcp/3048 (user-space unfs3, no portmapper, no kernel NFS server). If the
   PC runs a firewall, allow those ports from the board.
@@ -121,6 +123,35 @@ scripts/netboot.sh modules              # copy the new modules into the NFS root
   `scripts/netboot.sh clean`, not `rm`.
 - `scripts/netboot.sh stop | status | logs` manage the server; `logs` shows
   each TFTP request.
+
+### Direct cable
+
+Without a router between them, the PC has to hand the board its address.
+NetworkManager's "Shared" mode does that: the PC takes `10.42.0.1` on its
+Ethernet port, runs a DHCP server there (NetworkManager starts `dnsmasq`, which
+must be installed) and passes its own internet connection through. The image
+is unchanged; only the address in `netboot.txt` differs. Once, on the PC
+(`<eth>` is its Ethernet port, see `nmcli device`):
+
+```sh
+nmcli connection add type ethernet ifname <eth> con-name bbb-direct \
+    ipv4.method shared ipv4.addresses 10.42.0.1/24 ipv6.method disabled
+# with ufw: allow DHCP, TFTP and NFS from the board, and its internet
+sudo ufw allow in on <eth>
+sudo ufw route allow in on <eth>
+```
+
+Then build with that address; later `--dev` builds keep it:
+
+```sh
+NETBOOT_SERVER=10.42.0.1 scripts/build.sh --dev
+scripts/netboot.sh start
+```
+
+The profile comes up when the cable is plugged in, so `scripts/netboot.sh
+start` warns that `10.42.0.1` is not on the PC until then. To use the router
+again, `nmcli connection delete bbb-direct` and build with
+`NETBOOT_SERVER=auto`.
 
 ## Provisioning a node with mesh-cfgclient
 
