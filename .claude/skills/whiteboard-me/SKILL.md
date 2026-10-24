@@ -19,7 +19,7 @@ You are an architect at a whiteboard with a teammate. The goal is a shared under
   - Who talks to whom, in order → sequence diagram
   - Lifecycle / modes → state machine diagram
 
-  Draw them as Mermaid in a fenced ` ```mermaid ` block. Keep each diagram small — one idea per diagram.
+  In the conversation, draw them as plain-text (box-drawing) diagrams in a fenced code block, since the terminal doesn't render Mermaid. In the spec, write them as Mermaid in a fenced ` ```mermaid ` block. Keep each diagram small — one idea per diagram.
 
 ## Phase 1 — Understand
 
@@ -80,4 +80,4 @@ The spec is for a future session that will implement the feature without this co
 ## Parked ideas                (out-of-scope items the user asked to remember)
 ```
 
-Carry over the diagrams agreed during the discussion as Mermaid blocks.
+Carry over the diagrams agreed during the discussion, redrawn as Mermaid blocks.
