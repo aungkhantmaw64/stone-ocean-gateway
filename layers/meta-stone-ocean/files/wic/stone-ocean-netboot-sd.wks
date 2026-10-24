@@ -1,0 +1,7 @@
+# short-description: SD card for netboot development builds
+# long-description: beaglebone-yocto.wks without loader=u-boot, so wic writes
+# no extlinux.conf and U-Boot's distro boot runs boot.scr instead. The root
+# partition stays as a fallback; the netbooted kernel does not use it.
+
+part /boot --source bootimg_partition --ondisk mmcblk0 --fstype=vfat --label boot --active --align 4 --fixed-size 32 --use-uuid
+part / --source rootfs --ondisk mmcblk0 --fstype=ext4 --label root --align 4 --use-uuid
