@@ -1,0 +1,7 @@
+# Development overlay: the board boots its kernel over TFTP and mounts its
+# root filesystem over NFS from the host running scripts/netboot.sh. Chained
+# after a board file by scripts/build.sh --dev, never used on its own.
+header:
+  version: 20
+
+distro: stone-ocean-dev

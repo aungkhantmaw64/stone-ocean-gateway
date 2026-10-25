@@ -8,6 +8,9 @@ SRC_URI = " \
     file://resolved-mdns.conf \
     file://wired-mdns.conf \
 "
+
+# Dev builds mount the root filesystem over NFS on the same link.
+SRC_URI:append:stone-ocean-dev = " file://wired-nfsroot.conf"
 S = "${UNPACKDIR}"
 
 inherit allarch features_check
@@ -17,6 +20,10 @@ do_install() {
 	# Drop-ins for systemd-resolved and for systemd-conf's 80-wired.network.
 	install -D -m 0644 ${S}/resolved-mdns.conf ${D}${sysconfdir}/systemd/resolved.conf.d/mdns.conf
 	install -D -m 0644 ${S}/wired-mdns.conf ${D}${sysconfdir}/systemd/network/80-wired.network.d/mdns.conf
+}
+
+do_install:append:stone-ocean-dev() {
+	install -m 0644 ${S}/wired-nfsroot.conf ${D}${sysconfdir}/systemd/network/80-wired.network.d/nfsroot.conf
 }
 
 RDEPENDS:${PN} = "systemd systemd-conf"

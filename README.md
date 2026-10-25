@@ -39,6 +39,7 @@ first build takes about an hour on 20 cores and downloads several GB.
 scripts/build.sh                      # same as: scripts/build.sh beaglebone-black
 scripts/build.sh beaglebone-black shell   # bitbake shell, e.g. bitbake -c menuconfig virtual/kernel
 scripts/build.sh beaglebone-black lock    # move the pinned layer revisions to the branch heads
+scripts/build.sh --dev                    # netboot variant, see "Development: netboot"
 ```
 
 Output lands in `build/` (git-ignored):
@@ -48,6 +49,7 @@ Output lands in `build/` (git-ignored):
 | `build/layers/` | checked-out layers (bitbake, OE-core, meta-yocto) |
 | `build/downloads/`, `build/sstate-cache/` | shared between boards |
 | `build/<board>/tmp/deploy/images/<machine>/` | images |
+| `build/<board>-dev/` | the `--dev` build, and `nfsroot/` served by `scripts/netboot.sh` |
 
 Layer revisions are pinned in `kas/boards/<board>.lock.yml`, which kas picks
 up automatically.
@@ -88,6 +90,69 @@ journalctl -u bluetooth-mesh -b
 If `bluetooth-mesh` is not running, check `dmesg | grep -i blue` for missing
 firmware.
 
+## Development: netboot
+
+With a dev build the SD card only holds U-Boot and a boot script. The board
+loads the kernel and device tree over TFTP and mounts its root filesystem over
+NFS, both served from a container on the PC (`scripts/netboot.sh`), so a new
+kernel needs a reboot, not a new SD card. Nothing on the PC is configured, and
+everything stays under `build/<board>-dev/`.
+
+```sh
+scripts/build.sh --dev                  # dev image, boot.scr pointing at this PC
+# flash build/beaglebone-black-dev/tmp/deploy/images/beaglebone-yocto/*.wic.zst once, as above
+scripts/netboot.sh start                # TFTP + NFS; unpacks the rootfs on first start
+
+# After changing the kernel:
+scripts/build.sh --dev beaglebone-black build --target virtual/kernel
+scripts/netboot.sh modules              # copy the new modules into the NFS root
+# then reset the board
+```
+
+- The PC's address is detected at build time and written to `netboot.txt` on
+  the SD card's boot partition. If it changes, edit that file on the card, or
+  rebuild with `NETBOOT_SERVER=<ip> scripts/build.sh --dev`. A `NETBOOT_SERVER`
+  is remembered for later `--dev` builds of that board; `NETBOOT_SERVER=auto`
+  goes back to detecting it.
+- The container uses the host network: TFTP on udp/69, NFS on tcp/3049, mount
+  on tcp/3048 (user-space unfs3, no portmapper, no kernel NFS server). If the
+  PC runs a firewall, allow those ports from the board.
+- `scripts/netboot.sh rootfs` unpacks the image's root filesystem again after
+  a userspace change. This wipes the mesh keys in `/var/lib/bluetooth/mesh/`.
+- The NFS root's files are owned by root. Delete them with
+  `scripts/netboot.sh clean`, not `rm`.
+- `scripts/netboot.sh stop | status | logs` manage the server; `logs` shows
+  each TFTP request.
+
+### Direct cable
+
+Without a router between them, the PC has to hand the board its address.
+NetworkManager's "Shared" mode does that: the PC takes `10.42.0.1` on its
+Ethernet port, runs a DHCP server there (NetworkManager starts `dnsmasq`, which
+must be installed) and passes its own internet connection through. The image
+is unchanged; only the address in `netboot.txt` differs. Once, on the PC
+(`<eth>` is its Ethernet port, see `nmcli device`):
+
+```sh
+nmcli connection add type ethernet ifname <eth> con-name bbb-direct \
+    ipv4.method shared ipv4.addresses 10.42.0.1/24 ipv6.method disabled
+# with ufw: allow DHCP, TFTP and NFS from the board, and its internet
+sudo ufw allow in on <eth>
+sudo ufw route allow in on <eth>
+```
+
+Then build with that address; later `--dev` builds keep it:
+
+```sh
+NETBOOT_SERVER=10.42.0.1 scripts/build.sh --dev
+scripts/netboot.sh start
+```
+
+The profile comes up when the cable is plugged in, so `scripts/netboot.sh
+start` warns that `10.42.0.1` is not on the PC until then. To use the router
+again, `nmcli connection delete bbb-direct` and build with
+`NETBOOT_SERVER=auto`.
+
 ## Provisioning a node with mesh-cfgclient
 
 This is the spec 10 hardware check, before the spec 12 gateway tool exists.
@@ -124,15 +189,20 @@ filesystem, so they survive a reboot of the gateway.
 kas/common.yml               board-independent: layers, distro, image
 kas/boards/<board>.yml       machine + BSP layers for one board
 kas/boards/<board>.lock.yml  pinned layer revisions for that board
+kas/dev.yml                  netboot overlay, chained by build.sh --dev
 layers/meta-stone-ocean/
   conf/distro/stone-ocean.conf                 systemd, trimmed DISTRO_FEATURES, hostname
+  conf/distro/stone-ocean-dev.conf             the same plus boot.scr on the boot partition
+  files/wic/stone-ocean-netboot-sd.wks         dev SD layout: no extlinux.conf
+  recipes-bsp/stone-ocean-netboot/             boot.scr: TFTP kernel, NFS root
   recipes-core/images/stone-ocean-gateway-image.bb
   recipes-core/packagegroups/packagegroup-stone-ocean-gateway.bb   what the gateway installs
   recipes-connectivity/bluez5/                 mesh on, bluetooth-meshd instead of bluetoothd
-  recipes-connectivity/stone-ocean-netconf/    mDNS drop-ins
+  recipes-connectivity/stone-ocean-netconf/    mDNS drop-ins (+ NFS root keep-alive in dev)
   recipes-kernel/linux/stone-ocean-kernel.inc  board-independent kernel fragments
   recipes-kernel/linux/linux-yocto_%.bbappend  applies them to linux-yocto
 scripts/build.sh             kas-container wrapper
+scripts/netboot.sh           TFTP + NFS container for dev builds (scripts/netboot/)
 ```
 
 Nothing in `meta-stone-ocean` names a machine. To add a board, for example a
@@ -149,6 +219,9 @@ Raspberry Pi 4:
    bbappend or the board's kas file, under the machine's override, not in the
    shared files.
 4. Run `scripts/build.sh raspberrypi4 lock`, then `scripts/build.sh raspberrypi4`.
+5. For `--dev`, set `WKS_FILE:stone-ocean-dev` in the board's kas file to an SD
+   layout that has no `extlinux.conf`, so U-Boot runs `boot.scr` (see
+   `kas/boards/beaglebone-black.yml`).
 
 When the spec 12 gateway tool runs on the gateway itself, add its runtime
 (Python 3 and its D-Bus library) to `packagegroup-stone-ocean-gateway`.

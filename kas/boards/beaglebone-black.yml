@@ -11,3 +11,9 @@ repos:
   meta-yocto:
     layers:
       meta-yocto-bsp:
+
+local_conf_header:
+  beaglebone-black: |
+    # Dev builds (scripts/build.sh --dev): boot partition without
+    # extlinux.conf, so U-Boot runs the netboot boot.scr.
+    WKS_FILE:stone-ocean-dev = "stone-ocean-netboot-sd.wks"
